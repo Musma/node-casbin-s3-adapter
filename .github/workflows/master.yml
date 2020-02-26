@@ -1,0 +1,63 @@
+name: master
+on:
+  push:
+    branches:
+      - master
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - "4567-4599:4567-4599"
+        env:
+          SERVICES: s3
+          DEFAULT_REGION: ap-northeast-2
+    env:
+      CI: true
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v2
+
+      - name: Node 설치
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12.x
+
+      - name: Overwrite .npmrc
+        run: cp -f .ci.npmrc .npmrc
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+
+      - name: node_modules 캐시
+        uses: actions/cache@v1
+        id: node_modules-cache
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-
+
+      - name: node_modules 준비
+        run: yarn install
+
+      - name: 테스트
+        run: yarn test:ci
+
+      - name: 컴파일
+        run: yarn build
+
+      - name: 프로덕션 패키징
+        run: yarn publish --new-version $GITHUB_SHA
+
+      - name: Slack 알림
+        uses: 8398a7/action-slack@v2
+        with:
+          status: ${{ job.status }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

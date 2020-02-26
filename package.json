@@ -1,0 +1,45 @@
+{
+  "name": "@musma/node-casbin-s3-adapter",
+  "version": "0.0.1",
+  "description": "Amazon S3 Adapter for node-Casbin",
+  "repository": "https://github.com/Musma/node-casbin-s3-adapter.git",
+  "author": "Hyeonsoo Lee <hyeonsoo.david.lee@gmail.com>",
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
+  "main": "lib/index.js",
+  "files": [
+    "lib/"
+  ],
+  "scripts": {
+    "build": "tsc --build --force",
+    "test": "jest --watch --passWithNoTests",
+    "test:ci": "JEST_JUNIT_OUTPUT_NAME='./test-results/result.xml' jest --ci --runInBand --passWithNoTests --reporters=default --reporters=jest-junit --reporters=jest-github-actions-reporter",
+    "prepublish": "yarn build",
+    "publish": "yarn publish --access restricted --tag latest"
+  },
+  "dependencies": {
+    "autobind-decorator": "^2.4.0",
+    "aws-sdk": "^2.632.0",
+    "casbin": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^25.1.3",
+    "@types/node": "^12",
+    "@typescript-eslint/eslint-plugin": "^2.22.0",
+    "@typescript-eslint/parser": "^2.22.0",
+    "eslint": "^6.8.0",
+    "eslint-config-standard": "^14.1.0",
+    "eslint-plugin-import": "^2.20.1",
+    "eslint-plugin-node": "^11.0.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-standard": "^4.0.1",
+    "jest": "^25.1.0",
+    "jest-github-actions-reporter": "^1.0.2",
+    "jest-junit": "^10.0.0",
+    "ts-jest": "^25.2.1",
+    "ts-node": "^8.6.2",
+    "typescript": "^3.8.3"
+  }
+}
