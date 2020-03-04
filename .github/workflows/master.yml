@@ -51,12 +51,6 @@ jobs:
       - name: 테스트
         run: yarn test:ci
 
-      - name: 컴파일
-        run: yarn build
-
-      - name: 프로덕션 패키징
-        run: yarn publish --new-version ${{ github.sha }}
-
       - name: Slack 알림
         uses: 8398a7/action-slack@v2
         with:
