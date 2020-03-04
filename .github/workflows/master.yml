@@ -27,6 +27,9 @@ jobs:
         with:
           node-version: 12.x
 
+      - name: Overwrite .aws
+        run: cp -rf .aws ~/.aws
+
       - name: Overwrite .npmrc
         run: cp -f .ci.npmrc .npmrc
 

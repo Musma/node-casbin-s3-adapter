@@ -2,8 +2,7 @@ import * as aws from 'aws-sdk'
 
 describe('S3Adapter', () => {
   const S3 = new aws.S3({
-    endpoint: 'http://localhost:4572',
-    region: 'ap-northeast-2'
+    endpoint: 'http://localhost:4572'
   })
   const Bucket = 'casbin.musma.net'
 
