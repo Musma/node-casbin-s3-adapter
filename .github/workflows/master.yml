@@ -55,7 +55,7 @@ jobs:
         run: yarn build
 
       - name: 프로덕션 패키징
-        run: yarn publish --new-version $GITHUB_SHA
+        run: yarn publish --new-version ${{ github.sha }}
 
       - name: Slack 알림
         uses: 8398a7/action-slack@v2
