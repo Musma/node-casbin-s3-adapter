@@ -66,46 +66,48 @@ describe('S3Adapter', () => {
           }
           done()
         })
-
-        it('props.forceCreateBucket', () => {
-          assert.ok('TODO')
-        })
       })
 
-      describe('', () => {
-        it('#savePolicy', async done => {
-          const model = casbin.newModelFromString(MODEL)
-          const adapter = await S3Adapter.init({
-            S3,
-            Bucket
-          })
-          const enforcer = new casbin.Enforcer()
-          await enforcer.initWithModelAndAdapter(model, adapter)
-          await enforcer.addPolicy('p', 'Administrator', '*', 'iam:AddUserToGroup')
-          done()
+      it('#addPolicy', async done => {
+        const model = casbin.newModelFromString(MODEL)
+        const adapter = await S3Adapter.init({
+          S3,
+          Bucket
         })
+        const enforcer = new casbin.Enforcer()
+        await enforcer.initWithModelAndAdapter(model, adapter)
+
+        const resultBefore = await enforcer.enforce('Administrator', '*', 'iam:CreateGroup')
+        expect(resultBefore).toBe(false)
+
+        const added = await enforcer.addPolicy('Administrator', '*', 'iam:CreateGroup')
+        expect(added).toBe(true)
+
+        const resultAfter = await enforcer.enforce('Administrator', '*', 'iam:CreateGroup')
+        expect(resultAfter).toBe(true)
+        done()
       })
 
-      describe('', () => {
-        it('#removePolicy', async done => {
-          const model = casbin.newModelFromString(MODEL)
-          const adapter = await S3Adapter.init({
-            S3,
-            Bucket
-          })
-          const enforcer = new casbin.Enforcer()
-          await enforcer.initWithModelAndAdapter(model, adapter)
-          await enforcer.removePolicy('p', 'Administrator', '*', 'iam:AddUserToGroup')
-          done()
+      it('#removePolicy', async done => {
+        const model = casbin.newModelFromString(MODEL)
+        const adapter = await S3Adapter.init({
+          S3,
+          Bucket
         })
+        const enforcer = new casbin.Enforcer()
+        await enforcer.initWithModelAndAdapter(model, adapter)
+
+        const resultBefore = await enforcer.enforce('Administrator', '*', 'iam:CreateGroup')
+        expect(resultBefore).toBe(true)
+
+        const rmoved = await enforcer.removePolicy('Administrator', '*', 'iam:CreateGroup')
+        expect(rmoved).toBe(true)
+
+        const resultAfter = await enforcer.enforce('Administrator', '*', 'iam:CreateGroup')
+        expect(resultAfter).toBe(false)
+
+        done()
       })
     })
-
-    // afterAll(async done => {
-    //   await S3.deleteBucket({
-    //     Bucket
-    //   }).promise()
-    //   done()
-    // })
   })
 })

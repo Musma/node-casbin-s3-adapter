@@ -14,12 +14,6 @@ export interface S3AdapterProps {
   S3?: aws.S3
 
   /**
-   * 이미 있으면 밀어버리겠다.
-   * @default false
-   */
-  forceCreateBucket?: boolean
-
-  /**
    * @default DEFAULT_POLICY_FILENAME
    */
   policyFileName?: string
@@ -30,7 +24,7 @@ const DEFAULT_POLICY_FILENAME = 'policies.csv'
 export class S3Adapter implements casbin.Adapter {
   public static async init (props: S3AdapterProps): Promise<S3Adapter> {
     const instance = new S3Adapter(props)
-    await instance.init(props)
+    await instance.init()
     return instance
   }
 
@@ -46,19 +40,32 @@ export class S3Adapter implements casbin.Adapter {
 
   @boundMethod
   public async loadPolicy (model: casbin.Model): Promise<void> {
-    // TODO: @조성훈 Stream 사용, Line by Line
     model.clearPolicy()
 
     try {
-      const { Body = '' } = await this.S3.getObject({ Bucket: this.Bucket, Key: this.Key }).promise()
-      const lines = String(Body).split('\n')
+      const readPolicies = async (): Promise<string[]> => {
+        try {
+          const { Body = '' } = await this.S3.getObject({ Bucket: this.Bucket, Key: this.Key }).promise()
+          return String(Body).split('\n')
+        } catch (e) {
+          if ((e as aws.AWSError).code === 'NoSuchKey') {
+            return []
+          } else {
+            throw e
+          }
+        }
+      }
 
+      const lines = await readPolicies()
       for (const line of lines) {
         casbin.Helper.loadPolicyLine(line, model)
       }
     } catch (e) {
       if ((e as aws.AWSError).code === 'NoSuchKey') {
-        // 빈 파일 취급
+        await this.S3.putObject({
+          Bucket: this.Bucket,
+          Key: this.Key
+        }).promise()
       } else {
         throw e
       }
@@ -85,7 +92,8 @@ export class S3Adapter implements casbin.Adapter {
       }).promise()
       return true
     } catch (e) {
-      if ((e as aws.AWSError)) {
+      if ((e as aws.AWSError).code === 'NoSuchKey') {
+      } else {
         console.error(e.message)
       }
       return false
@@ -94,27 +102,61 @@ export class S3Adapter implements casbin.Adapter {
 
   @boundMethod
   public async addPolicy (sec: string, ptype: string, rule: string[]): Promise<void> {
-    try {
-      console.log(222)
-      const line = `${ptype},${rule.join()}`
-      await this.S3.putObject({
-        Bucket: this.Bucket,
-        Key: this.Key,
-        Body: line
-      }).promise()
-    } catch (e) {
-      if ((e as aws.AWSError)) {
-        console.log(33883)
-        console.error(e.message)
+    const readPolicies = async (): Promise<string[]> => {
+      try {
+        const { Body = '' } = await this.S3.getObject({ Bucket: this.Bucket, Key: this.Key }).promise()
+        return String(Body).split('\n')
+      } catch (e) {
+        if ((e as aws.AWSError).code === 'NoSuchKey') {
+          return []
+        } else {
+          throw e
+        }
       }
     }
+
+    const lines = await readPolicies()
+    console.log(lines)
+    const Body = [...lines, `${ptype},${rule.join()}`].join('\n')
+
+    await this.S3.putObject({
+      Bucket: this.Bucket,
+      Key: this.Key,
+      Body
+    }).promise()
   }
 
   @boundMethod
   public async removePolicy (sec: string, ptype: string, rule: string[]): Promise<void> {
-    const line = `${ptype},${rule.join()}`
+    try {
+      const readPolicies = async (): Promise<string[]> => {
+        try {
+          const { Body = '' } = await this.S3.getObject({ Bucket: this.Bucket, Key: this.Key }).promise()
+          return String(Body).split('\n')
+        } catch (e) {
+          if ((e as aws.AWSError).code === 'NoSuchKey') {
+            return []
+          } else {
+            throw e
+          }
+        }
+      }
 
-    // throw new Error('Method not implemented.')
+      const lines = await readPolicies()
+      console.log(lines)
+      const line = `${ptype},${rule.join()}`
+      const deletelineResult = lines.filter(_ => _ !== line).join('\n')
+      this.S3.putObject({
+        Bucket: this.Bucket,
+        Key: this.Key,
+        Body: deletelineResult
+      }).promise()
+    } catch (e) {
+      if ((e as aws.AWSError).code === 'NoSuchKey') {
+      } else {
+        throw e
+      }
+    }
   }
 
   @boundMethod
@@ -123,11 +165,7 @@ export class S3Adapter implements casbin.Adapter {
   }
 
   @boundMethod
-  protected async init (props: S3AdapterProps): Promise<void> {
-    if (props.forceCreateBucket) {
-      await this.createOrReplaceBucket(this.Bucket)
-    }
-
+  protected async init (): Promise<void> {
     try {
       // Bucket 있는지 검사
       await this.S3.headBucket({ Bucket: this.Bucket }).promise()
@@ -141,12 +179,17 @@ export class S3Adapter implements casbin.Adapter {
 
   @boundMethod
   protected async createOrReplaceBucket (Bucket: string): Promise<void> {
-    await this.S3.deleteBucket({
-      Bucket
-    }).promise()
-    await this.S3.createBucket({
-      Bucket,
-      ObjectLockEnabledForBucket: true
-    }).promise()
+    try {
+      await this.S3.deleteBucket({
+        Bucket
+      }).promise()
+
+      await this.S3.createBucket({
+        Bucket,
+        ObjectLockEnabledForBucket: true
+      }).promise()
+    } catch (e) {
+
+    }
   }
 }
