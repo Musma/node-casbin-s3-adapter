@@ -116,9 +116,11 @@ export class S3Adapter implements casbin.Adapter {
     }
 
     const lines = await readPolicies()
-    console.log(lines)
-    const Body = [...lines, `${ptype},${rule.join()}`].join('\n')
 
+    if (!lines.includes(`${ptype},${rule.join()}`)) {
+      lines.push(`${ptype},${rule.join()}`)
+    }
+    const Body = [...lines].join('\n')
     await this.S3.putObject({
       Bucket: this.Bucket,
       Key: this.Key,
@@ -143,13 +145,12 @@ export class S3Adapter implements casbin.Adapter {
       }
 
       const lines = await readPolicies()
-      console.log(lines)
       const line = `${ptype},${rule.join()}`
-      const deletelineResult = lines.filter(_ => _ !== line).join('\n')
-      this.S3.putObject({
+      const deleteLineResult = lines.filter(_ => _ !== line).join('\n')
+      await this.S3.putObject({
         Bucket: this.Bucket,
         Key: this.Key,
-        Body: deletelineResult
+        Body: deleteLineResult
       }).promise()
     } catch (e) {
       if ((e as aws.AWSError).code === 'NoSuchKey') {
