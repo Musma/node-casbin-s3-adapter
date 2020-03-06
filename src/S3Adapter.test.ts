@@ -27,6 +27,7 @@ describe('S3Adapter', () => {
     endpoint: 'http://localhost:4572'
   })
   const Bucket = 'casbin.musma.net'
+  const Key = 'policies.csv'
 
   describe('Head', () => {
     beforeAll(async done => {
@@ -51,7 +52,7 @@ describe('S3Adapter', () => {
         done()
       })
 
-      describe('화 관련', () => {
+      describe('초기화 관련', () => {
         it('맨 처음 S3버킷에 policy 파일이 없어도 초기화되어야 한다. (그냥 빈 파일 취급한다.)', async done => {
           const model = casbin.newModelFromString(MODEL)
           const adapter = await S3Adapter.init({
@@ -85,6 +86,10 @@ describe('S3Adapter', () => {
 
         const resultAfter = await enforcer.enforce('Administrator', '*', 'iam:CreateGroup')
         expect(resultAfter).toBe(true)
+
+        const rmoved = await enforcer.removePolicy('Administrator', '*', 'iam:CreateGroup')
+        expect(rmoved).toBe(true)
+
         done()
       })
 
@@ -98,13 +103,17 @@ describe('S3Adapter', () => {
         await enforcer.initWithModelAndAdapter(model, adapter)
 
         const resultBefore = await enforcer.enforce('Administrator', '*', 'iam:CreateGroup')
-        expect(resultBefore).toBe(true)
+        expect(resultBefore).toBe(false)
 
-        const added = await enforcer.addPolicy('Administrator', '*', 'iam:CreateGroup')
+        let added = await enforcer.addPolicy('Administrator', '*', 'iam:CreateGroup')
+        expect(added).toBe(true)
+
+        added = await enforcer.addPolicy('Administrator', '*', 'iam:CreateGroup')
         expect(added).toBe(false)
 
-        const resultAfter = await enforcer.enforce('Administrator', '*', 'iam:CreateGroup')
-        expect(resultAfter).toBe(true)
+        const rmoved = await enforcer.removePolicy('Administrator', '*', 'iam:CreateGroup')
+        expect(rmoved).toBe(true)
+
         done()
       })
 
@@ -117,8 +126,8 @@ describe('S3Adapter', () => {
         const enforcer = new casbin.Enforcer()
         await enforcer.initWithModelAndAdapter(model, adapter)
 
-        const resultBefore = await enforcer.enforce('Administrator', '*', 'iam:CreateGroup')
-        expect(resultBefore).toBe(true)
+        const added = await enforcer.addPolicy('Administrator', '*', 'iam:CreateGroup')
+        expect(added).toBe(true)
 
         const rmoved = await enforcer.removePolicy('Administrator', '*', 'iam:CreateGroup')
         expect(rmoved).toBe(true)
@@ -129,7 +138,7 @@ describe('S3Adapter', () => {
         done()
       })
 
-      it('#removePolicy-2(동일 한 Policy 두 번 지웠을 때)', async done => {
+      it('#removePolicy-2(존재하지 않는 Policy 지웠을 때)', async done => {
         const model = casbin.newModelFromString(MODEL)
         const adapter = await S3Adapter.init({
           S3,
@@ -184,6 +193,46 @@ describe('S3Adapter', () => {
 
         done()
       })
+
+      it(`
+         |#removeFilteredPolicy
+         |테스트 용도로 Shop 값을 2개를 넣고 해당 값을 filter 해서 삭제 후
+         |결과를 확인한다
+         |`.replace(/^[^|]*\|/gm, ''), async done => {
+        const model = casbin.newModelFromString(MODEL)
+        const adapter = await S3Adapter.init({
+          S3,
+          Bucket
+        })
+        const enforcer = new casbin.Enforcer()
+        await enforcer.initWithModelAndAdapter(model, adapter)
+
+        await enforcer.addPolicy('Shop', '*', 'rfid:AttachRfidTagToSpool')
+        await enforcer.addPolicy('Shop', '*', 'rfid:DetachRfidTagFromSpool')
+
+        const removeResult3 = await enforcer.enforce('Shop', '*', 'rfid:AttachRfidTagToSpool')
+        expect(removeResult3).toBe(true)
+        const removeResult4 = await enforcer.enforce('Shop', '*', 'rfid:DetachRfidTagFromSpool')
+        expect(removeResult4).toBe(true)
+
+        const removeFilteredResult = await enforcer.removeFilteredPolicy(0, 'Shop')
+        expect(removeFilteredResult).toBe(true)
+
+        const removeResult1 = await enforcer.enforce('Shop', '*', 'rfid:AttachRfidTagToSpool')
+        expect(removeResult1).toBe(false)
+
+        const removeResult2 = await enforcer.enforce('Shop', '*', 'rfid:DetachRfidTagFromSpool')
+        expect(removeResult2).toBe(false)
+
+        done()
+      })
     })
+  })
+  afterAll(async done => {
+    await S3.deleteObject({
+      Bucket,
+      Key
+    }).promise()
+    done()
   })
 })

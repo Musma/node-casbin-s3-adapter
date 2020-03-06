@@ -116,9 +116,9 @@ export class S3Adapter implements casbin.Adapter {
     }
 
     const lines = await readPolicies()
-
-    if (!lines.includes(`${ptype},${rule.join()}`)) {
-      lines.push(`${ptype},${rule.join()}`)
+    const line = `${ptype},${rule.join()}`
+    if (!lines.includes(line)) {
+      lines.push(line)
     }
     const Body = [...lines].join('\n')
     await this.S3.putObject({
@@ -146,11 +146,12 @@ export class S3Adapter implements casbin.Adapter {
 
       const lines = await readPolicies()
       const line = `${ptype},${rule.join()}`
-      const deleteLineResult = lines.filter(_ => _ !== line).join('\n')
+      const deleteLine = lines.filter(l => l !== line).join('\n')
+
       await this.S3.putObject({
         Bucket: this.Bucket,
         Key: this.Key,
-        Body: deleteLineResult
+        Body: deleteLine
       }).promise()
     } catch (e) {
       if ((e as aws.AWSError).code === 'NoSuchKey') {
@@ -162,7 +163,34 @@ export class S3Adapter implements casbin.Adapter {
 
   @boundMethod
   public async removeFilteredPolicy (sec: string, ptype: string, fieldIndex: number, ...fieldValues: string[]): Promise<void> {
-    throw new Error('Method not implemented.')
+    const readPolicies = async (): Promise<string[]> => {
+      try {
+        const { Body = '' } = await this.S3.getObject({ Bucket: this.Bucket, Key: this.Key }).promise()
+        return String(Body).split('\n')
+      } catch (e) {
+        if ((e as aws.AWSError).code === 'NoSuchKey') {
+          return []
+        } else {
+          throw e
+        }
+      }
+    }
+
+    const idx = fieldIndex + fieldValues.length + 1
+    const lines = (await readPolicies()).filter(line => {
+      const l = line.split(',').filter((_, i) => {
+        if (i !== 0 && fieldIndex < i && idx > i) {
+          return _ !== fieldValues[i - (fieldIndex + 1)]
+        }
+      })
+      return l.length !== 0
+    })
+
+    await this.S3.putObject({
+      Bucket: this.Bucket,
+      Key: this.Key,
+      Body: lines.join('\n')
+    }).promise()
   }
 
   @boundMethod
@@ -175,22 +203,6 @@ export class S3Adapter implements casbin.Adapter {
         console.error(e.message)
       }
       throw e
-    }
-  }
-
-  @boundMethod
-  protected async createOrReplaceBucket (Bucket: string): Promise<void> {
-    try {
-      await this.S3.deleteBucket({
-        Bucket
-      }).promise()
-
-      await this.S3.createBucket({
-        Bucket,
-        ObjectLockEnabledForBucket: true
-      }).promise()
-    } catch (e) {
-
     }
   }
 }
